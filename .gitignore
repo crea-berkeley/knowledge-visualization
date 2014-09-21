@@ -1,0 +1,12 @@
+bin/
+target/
+log/
+textbooks/
+*.swp
+*.aux
+*.log
+*.nav
+*.snm
+*.vrb
+*.toc
+*.out
