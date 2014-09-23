@@ -103,10 +103,12 @@ object WebApp extends js.JSApp {
   private[this] def findLabel : Option[String] = searchInput.map(_.asInstanceOf[js.Dynamic].value.asInstanceOf[String])
 
   private[this] def findId(label : String) : Future[js.Dynamic] = futureGraph.map { graph =>
+
     graph.nodes().asInstanceOf[js.Array[js.Dynamic]]
       .filter((elem : js.Dynamic) => elem.label.asInstanceOf[String] == label)
       .map((elem : js.Dynamic) => elem.id)
       .pop
+
   }
 
   @JSExport
@@ -172,9 +174,31 @@ object WebApp extends js.JSApp {
       promiseGraph.success(gexfSig.graph)
       resetGraph()
 
-      sigma.bind("doubleClickNode", (e : js.Dynamic) => viewNeighborhood(e.data.node.label.asInstanceOf[String]))
+      sigma.bind("clickNode", (e : js.Dynamic) => {
 
-      sigma.bind("doubleClickStage", (e : js.Dynamic) => resetGraph())
+        val label = e.data.node.label.asInstanceOf[String]
+
+        searchInput.foreach(_.asInstanceOf[js.Dynamic].value = label)
+
+      })
+
+      sigma.bind("doubleClickNode", (e : js.Dynamic) => {
+
+        val label = e.data.node.label.asInstanceOf[String]
+
+        val term = label.replace(" ", "+")
+
+        dom.open(s"http://www.ncbi.nlm.nih.gov/pubmed/?term=${term}")
+
+      })
+
+      sigma.bind("doubleClickStage", (e : js.Dynamic) => {
+
+        resetGraph()
+
+        searchInput.foreach(_.asInstanceOf[js.Dynamic].value = "")
+
+      })
 
     })
 
