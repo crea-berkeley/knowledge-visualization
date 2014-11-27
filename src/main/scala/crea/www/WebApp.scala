@@ -12,8 +12,11 @@ import js.annotation.JSExport
 
 import org.scalajs.dom
 import dom.document
+import dom.{WebSocket, MessageEvent, console}
 
 object WebApp extends js.JSApp {
+
+  private[this] val client = new WebSocket("ws://localhost:8080/log")
 
   private[this] def gexfPath : String = "data/elastin-abstracts.gexf"
 
@@ -40,10 +43,10 @@ object WebApp extends js.JSApp {
       defaultLabelSize = 32,
       defaultLabelColor = "#FFD67D",
       minNodeSize = 0.5,
-      maxNodeSize = 5.0,
+      maxNodeSize = 5,
       minEdgeSize = 0.1,
       maxEdgeSize = 0.4,
-      scalingMode = "outside",
+      scalingMode = "inside",
       hideEdgesOnMove = true,
       doubleClickEnabled = false
     )
@@ -53,8 +56,10 @@ object WebApp extends js.JSApp {
       graph = newInstance(sigmajs.classes.graph)(),
       settings = settings
     )
-      newInstance(sigmajs)(config)
-    }
+
+    newInstance(sigmajs)(config)
+
+  }
 
   private[this] val promiseGraph : Promise[js.Dynamic] = Promise[js.Dynamic]
   private[this] val futureGraph : Future[js.Dynamic] = promiseGraph.future
@@ -166,41 +171,58 @@ object WebApp extends js.JSApp {
 
   def main() = {
 
-    sigmajs.parsers.gexf(gexfPath, js.Dynamic.literal(), { (gexfSig : js.Dynamic) =>
+    client.onmessage = { (event : MessageEvent) =>
 
-      sigmajs.renderers.`def` = sigmajs.renderers.canvas
-      sigmajs.plugins.dragNodes(sigma, sigma.renderers.asInstanceOf[js.Array[js.Dynamic]](0))
+      import js.JSON
 
-      promiseGraph.success(gexfSig.graph)
-      resetGraph()
+      val data = JSON.parse(event.data.asInstanceOf[String]).asInstanceOf[js.Dynamic]
 
-      sigma.bind("clickNode", (e : js.Dynamic) => {
+      console.log(data)
 
-        val label = e.data.node.label.asInstanceOf[String]
+      val subject = data.subject
+      val obj = data.obj
 
-        searchInput.foreach(_.asInstanceOf[js.Dynamic].value = label)
+      console.log(s"Subject: $subject")
 
-      })
+      val subjectNode = js.Dynamic.literal(
+        id = subject,
+        size = 1,
+        x = Math.random*10,
+        y = Math.random*10,
+        `type` = subject,
+        label = subject
+      )
 
-      sigma.bind("doubleClickNode", (e : js.Dynamic) => {
+      val objectNode = js.Dynamic.literal(
+        id = obj,
+        size = 1,
+        x = Math.random*10,
+        y = Math.random*10,
+        `type` = obj,
+        label = obj
+      )
 
-        val label = e.data.node.label.asInstanceOf[String]
+      val edge = js.Dynamic.literal(
+        label = data.predicate,
+        id = data.timestamp,
+        source = subject,
+        target = obj,
+        `type` = data.pmid
+      )
 
-        val term = label.replace(" ", "+")
+      scala.util.Try(sigma.graph.addNode(subjectNode))
+      scala.util.Try(sigma.graph.addNode(objectNode))
+      sigma.graph.addEdge(edge)
 
-        dom.open(s"http://www.ncbi.nlm.nih.gov/pubmed/?term=${term}")
+      sigma.refresh()
 
-      })
+    }
 
-      sigma.bind("doubleClickStage", (e : js.Dynamic) => {
+    sigmajs.renderers.`def` = sigmajs.renderers.canvas
 
-        resetGraph()
+    sigmajs.plugins.dragNodes(sigma, sigma.renderers.asInstanceOf[js.Array[js.Dynamic]](0))
 
-        searchInput.foreach(_.asInstanceOf[js.Dynamic].value = "")
-
-      })
-
-    })
+    sigma.startForceAtlas2(js.Dynamic.literal(barnesHutOptimize = false))
 
   }
 

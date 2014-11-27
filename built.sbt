@@ -18,6 +18,8 @@ ScalaJSKeys.jsDependencies += ProvidedJS / "sigma.plugins.dragNodes.min.js" depe
 
 ScalaJSKeys.jsDependencies += ProvidedJS / "sigma.plugins.neighborhoods.min.js" dependsOn "sigma.min.js"
 
+ScalaJSKeys.jsDependencies += ProvidedJS / "sigma.layout.forceAtlas2.min.js" dependsOn "sigma.min.js"
+
 ScalaJSKeys.preLinkJSEnv := new scala.scalajs.sbtplugin.env.phantomjs.PhantomJSEnv
 
 skip in ScalaJSKeys.packageJSDependencies := false
