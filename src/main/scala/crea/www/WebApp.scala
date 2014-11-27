@@ -16,7 +16,7 @@ import dom.{WebSocket, MessageEvent, console}
 
 object WebApp extends js.JSApp {
 
-  private[this] val client = new WebSocket("ws://localhost:8080/log")
+  private[this] val client = new WebSocket("ws://high-fructose-corn-syrup.uwaterloo.ca:8080/log")
 
   private[this] def gexfPath : String = "data/elastin-abstracts.gexf"
 
@@ -42,13 +42,14 @@ object WebApp extends js.JSApp {
       labelSizeRatio = 3.0,
       defaultLabelSize = 32,
       defaultLabelColor = "#FFD67D",
-      minNodeSize = 0.5,
+      minNodeSize = 0.25,
       maxNodeSize = 5,
       minEdgeSize = 0.1,
       maxEdgeSize = 0.4,
       scalingMode = "inside",
       hideEdgesOnMove = true,
-      doubleClickEnabled = false
+      doubleClickEnabled = false,
+      zoomMin = 0.005
     )
 
     val  config = js.Dynamic.literal(
@@ -182,22 +183,20 @@ object WebApp extends js.JSApp {
       val subject = data.subject
       val obj = data.obj
 
-      console.log(s"Subject: $subject")
-
       val subjectNode = js.Dynamic.literal(
         id = subject,
-        size = 1,
-        x = Math.random*10,
-        y = Math.random*10,
+        size = 0.25,
+        x = Math.random() * 10,
+        y = Math.random() * 10,
         `type` = subject,
         label = subject
       )
 
       val objectNode = js.Dynamic.literal(
         id = obj,
-        size = 1,
-        x = Math.random*10,
-        y = Math.random*10,
+        size = 0.25,
+        x = Math.random() * 10,
+        y = Math.random() * 10,
         `type` = obj,
         label = obj
       )
@@ -222,7 +221,14 @@ object WebApp extends js.JSApp {
 
     sigmajs.plugins.dragNodes(sigma, sigma.renderers.asInstanceOf[js.Array[js.Dynamic]](0))
 
-    sigma.startForceAtlas2(js.Dynamic.literal(barnesHutOptimize = false))
+    sigma.startForceAtlas2()
+
+    sigma.camera.goTo(js.Dynamic.literal(
+      x = 0,
+      y = 0,
+      angle = 0,
+      ratio = 0.005
+    ))
 
   }
 
