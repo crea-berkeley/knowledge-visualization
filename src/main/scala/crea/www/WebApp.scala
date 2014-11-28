@@ -16,14 +16,16 @@ import dom.{WebSocket, MessageEvent, console}
 
 object WebApp extends js.JSApp {
 
-  private[this] val client = new WebSocket("ws://high-fructose-corn-syrup.uwaterloo.ca:8080/log")
+  private[this] val client = { 
 
-  private[this] def gexfPath : String = "data/elastin-abstracts.gexf"
+    new WebSocket("ws://high-fructose-corn-syrup.uwaterloo.ca:8080/")
 
-  private[this] def autocomplete(input : String) : Regex = input.toList.mkString("""[\s\w]*""").concat("""[\s\w]*""").r
+  } 
 
-  private[this] def searchInput : Option[dom.HTMLElement] = {
-    Option(document.getElementById("search-input"))
+  private[this] def autocomplete(input : String) : Regex = { 
+    
+    input.toList.mkString("""[\s\w]*""").concat("""[\s\w]*""").r
+
   }
 
   private[this] def sigmajs = js.Dynamic.global.sigma
@@ -40,7 +42,7 @@ object WebApp extends js.JSApp {
       labelSize = "proportional",
       labelThreshold = 2.5,
       labelSizeRatio = 3.0,
-      defaultLabelSize = 32,
+      defaultLabelSize = 16,
       defaultLabelColor = "#FFD67D",
       minNodeSize = 0.25,
       maxNodeSize = 5,
@@ -52,7 +54,7 @@ object WebApp extends js.JSApp {
       zoomMin = 0.005
     )
 
-    val  config = js.Dynamic.literal(
+    val config = js.Dynamic.literal(
       container = "graph-container",
       graph = newInstance(sigmajs.classes.graph)(),
       settings = settings
@@ -62,63 +64,23 @@ object WebApp extends js.JSApp {
 
   }
 
-  private[this] val promiseGraph : Promise[js.Dynamic] = Promise[js.Dynamic]
-  private[this] val futureGraph : Future[js.Dynamic] = promiseGraph.future
-
   private[this] def dictionary : Array[String] = {
     sigma.graph.nodes().asInstanceOf[js.Array[js.Dynamic]].map((_ : js.Dynamic).label.asInstanceOf[String])
   }
 
-  private[this] def resetGraph() : Future[Unit] = futureGraph.map { graph =>
-
-    sigma.graph.clear()
-    sigma.graph.read(js.Dynamic.literal(nodes = graph.nodes(), edges = graph.edges()))
-    sigma.refresh()
-
-  }
-
-  private[this] def viewNeighborhood(label : String) : Future[Unit] = futureGraph.map { graph =>
-
-    for (id <- findId(label)) {
-
-      Try(graph.neighborhood(id)).map { neighborhood =>
-
-        if(neighborhood.nodes.length > 1) {
-
-          sigma.camera.goTo(js.Dynamic.literal(
-            x = 0,
-            y = 0,
-            angle = 0,
-            ratio = 1
-          ))
-
-          sigma.graph.clear()
-          sigma.graph.read(neighborhood)
-          sigma.refresh()
-
-          searchInput.foreach(_.asInstanceOf[js.Dynamic].value = label)
-
-        }
-
-      }
-
-    }
-
-  }
-
-  private[this] def findLabel : Option[String] = searchInput.map(_.asInstanceOf[js.Dynamic].value.asInstanceOf[String])
-
-  private[this] def findId(label : String) : Future[js.Dynamic] = futureGraph.map { graph =>
-
-    graph.nodes().asInstanceOf[js.Array[js.Dynamic]]
-      .filter((elem : js.Dynamic) => elem.label.asInstanceOf[String] == label)
-      .map((elem : js.Dynamic) => elem.id)
-      .pop
-
+  private[this] def searchInput : Option[String] = {
+    Option(document.getElementById("search-input"))
+      .map(_.asInstanceOf[js.Dynamic]
+      .value
+      .asInstanceOf[String])
   }
 
   @JSExport
-  def search() = findLabel.foreach(viewNeighborhood)
+  def search() = { 
+    
+    searchInput.foreach(s => client.send(js.Any.fromString(s)))
+
+  } 
 
   @JSExport
   def showSuggestions() = Option(document.getElementById("suggestions")).map { suggestions =>
@@ -127,7 +89,7 @@ object WebApp extends js.JSApp {
       suggestions.removeChild(suggestions.lastChild)
     }
 
-    findLabel.map { label =>
+    searchInput.map { label =>
 
       val dict = dictionary
 
@@ -142,7 +104,9 @@ object WebApp extends js.JSApp {
           items.foreach { suggestion =>
 
             val li = document.createElement("li")
-            li.onclick = (e : dom.MouseEvent) => viewNeighborhood(suggestion)
+
+            li.onclick = (e : dom.MouseEvent) => client.send(suggestion)
+
             li.appendChild(document.createTextNode(suggestion))
 
             suggestions.appendChild(li)
@@ -172,11 +136,11 @@ object WebApp extends js.JSApp {
 
   def main() = {
 
+    val atlasConfig = js.Dynamic.literal(adjustSizes=true)
+
     client.onmessage = { (event : MessageEvent) =>
 
-      import js.JSON
-
-      val data = JSON.parse(event.data.asInstanceOf[String]).asInstanceOf[js.Dynamic]
+      val data = js.JSON.parse(event.data.asInstanceOf[String]).asInstanceOf[js.Dynamic]
 
       console.log(data)
 
@@ -185,7 +149,7 @@ object WebApp extends js.JSApp {
 
       val subjectNode = js.Dynamic.literal(
         id = subject,
-        size = 0.25,
+        size = 0.5,
         x = Math.random() * 10,
         y = Math.random() * 10,
         `type` = subject,
@@ -194,7 +158,7 @@ object WebApp extends js.JSApp {
 
       val objectNode = js.Dynamic.literal(
         id = obj,
-        size = 0.25,
+        size = 0.5,
         x = Math.random() * 10,
         y = Math.random() * 10,
         `type` = obj,
@@ -206,14 +170,27 @@ object WebApp extends js.JSApp {
         id = data.timestamp,
         source = subject,
         target = obj,
-        `type` = data.pmid
+        pmid = data.pmid,
+        elapsed = data.elapsed,
+        timestamp = data.timestamp
       )
+
+      sigma.stopForceAtlas2()
 
       scala.util.Try(sigma.graph.addNode(subjectNode))
       scala.util.Try(sigma.graph.addNode(objectNode))
       sigma.graph.addEdge(edge)
 
+      val graph = js.Dynamic.literal(
+        nodes=sigma.graph.nodes(),
+        edges=sigma.graph.edges()
+      )
+
+      dom.localStorage.setItem("graph", js.JSON.stringify(graph))
+
       sigma.refresh()
+
+      sigma.startForceAtlas2(atlasConfig)
 
     }
 
@@ -221,14 +198,18 @@ object WebApp extends js.JSApp {
 
     sigmajs.plugins.dragNodes(sigma, sigma.renderers.asInstanceOf[js.Array[js.Dynamic]](0))
 
-    sigma.startForceAtlas2()
+    Option(dom.localStorage.getItem("graph"))
+      .map(v => js.JSON.parse(v.asInstanceOf[String]))
+      .foreach(graph => { 
 
-    sigma.camera.goTo(js.Dynamic.literal(
-      x = 0,
-      y = 0,
-      angle = 0,
-      ratio = 0.005
-    ))
+        sigma.stopForceAtlas2()
+        sigma.graph.clear()
+        sigma.graph.read(graph)
+        sigma.refresh()
+        sigma.startForceAtlas2(atlasConfig)
+
+      })
+        
 
   }
 
